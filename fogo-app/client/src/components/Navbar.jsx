@@ -85,37 +85,39 @@ export default function Navbar({
         </div>
 
         {/* Navegação Desktop (oculta em mobile) */}
-        <nav className="hidden lg:flex items-center gap-1 flex-1 justify-center max-w-3xl">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
-            const isCCO = item.id === 'operations';
-            const hasCritical = isCCO && criticalEvents > 0;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setActiveTab(item.id)}
-                className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer whitespace-nowrap ${
-                  isActive
-                    ? isCCO
-                      ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
-                      : 'bg-orange-500/20 text-orange-300 border border-orange-500/40'
-                    : isCCO
-                      ? 'text-slate-400 hover:text-rose-300 hover:bg-rose-500/10 border border-transparent'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900 border border-transparent'
-                }`}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                <span>{item.label}</span>
-                {/* Badge de alertas críticos na aba CCO */}
-                {hasCritical && (
-                  <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-white text-[9px] font-bold animate-pulse ring-1 ring-slate-950">
-                    {criticalEvents > 9 ? '9+' : criticalEvents}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+        <nav className="hidden lg:flex flex-1 min-w-0 items-center justify-center">
+          <div className="flex items-center gap-1 max-w-full overflow-x-auto no-scrollbar px-1 py-2 -my-2">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id;
+              const isCCO = item.id === 'operations';
+              const hasCritical = isCCO && criticalEvents > 0;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id)}
+                  className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer whitespace-nowrap ${
+                    isActive
+                      ? isCCO
+                        ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                        : 'bg-orange-500/20 text-orange-300 border border-orange-500/40'
+                      : isCCO
+                        ? 'text-slate-400 hover:text-rose-300 hover:bg-rose-500/10 border border-transparent'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900 border border-transparent'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5 shrink-0" />
+                  <span>{item.label}</span>
+                  {/* Badge de alertas críticos na aba CCO */}
+                  {hasCritical && (
+                    <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-white text-[9px] font-bold animate-pulse ring-1 ring-slate-950">
+                      {criticalEvents > 9 ? '9+' : criticalEvents}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </nav>
 
         {/* Lado Direito: Status + Ações */}
