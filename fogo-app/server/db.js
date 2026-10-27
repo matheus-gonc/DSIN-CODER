@@ -56,6 +56,26 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (assigned_equipment_id) REFERENCES equipments(id) ON DELETE SET NULL
   );
+
+  -- 3. Tabela de Eventos Críticos & Telemetria em Tempo Real (Etapa 2 - CCO PROMETHEUS)
+  CREATE TABLE IF NOT EXISTS city_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    description TEXT,
+    severity TEXT NOT NULL CHECK(severity IN ('critico', 'alerta', 'informativo')),
+    event_type TEXT NOT NULL, -- 'acidente', 'pane_eletrica', 'congestiona', 'vandalismo', 'sensor_offline', 'alarme_seguranca'
+    neighborhood TEXT NOT NULL,
+    street TEXT,
+    latitude REAL NOT NULL,
+    longitude REAL NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('ativo', 'em_atendimento', 'resolvido')),
+    equipment_id INTEGER,
+    agent_id INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    resolved_at DATETIME,
+    FOREIGN KEY (equipment_id) REFERENCES equipments(id) ON DELETE SET NULL,
+    FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE SET NULL
+  );
 `);
 
 // Seed inicial com dados inteligentes caso o banco esteja vazio
@@ -428,6 +448,133 @@ if (countAgents.count === 0) {
 
   for (const ag of initialAgents) {
     insertAgent.run(ag);
+  }
+}
+
+// Seed inicial para Eventos (CCO PROMETHEUS — Etapa 2)
+const countEvents = db.prepare('SELECT COUNT(*) as count FROM city_events').get();
+if (countEvents.count === 0) {
+  const insertEvent = db.prepare(`
+    INSERT INTO city_events (
+      title, description, severity, event_type,
+      neighborhood, street, latitude, longitude,
+      status, equipment_id, agent_id
+    ) VALUES (
+      @title, @description, @severity, @event_type,
+      @neighborhood, @street, @latitude, @longitude,
+      @status, @equipment_id, @agent_id
+    )
+  `);
+
+  const initialEvents = [
+    {
+      title: 'Câmera CAM-VID-015 offline — falha de transmissão',
+      description: 'Oscilação no sinal óptico detectada às 03:14h. Perda de 84% dos pacotes de stream. Iluminador infravermelho sem resposta. Cobertura da Av. Brasil comprometida.',
+      severity: 'critico',
+      event_type: 'sensor_offline',
+      neighborhood: 'Centro',
+      street: 'Av. Brasil',
+      latitude: -22.2112,
+      longitude: -49.9554,
+      status: 'em_atendimento',
+      equipment_id: 4,
+      agent_id: 3
+    },
+    {
+      title: 'Radar RAD-FUR-099 furtado — Zona Sul',
+      description: 'Equipamento vandalizado e cabeamento de alimentação/telemetria furtado na madrugada. BO registrado: 2026/8941-F. Trecho sem fiscalização eletrônica.',
+      severity: 'critico',
+      event_type: 'vandalismo',
+      neighborhood: 'Zona Sul',
+      street: 'Av. João Ramalho',
+      latitude: -22.2415,
+      longitude: -49.9320,
+      status: 'ativo',
+      equipment_id: 12,
+      agent_id: null
+    },
+    {
+      title: 'Congestionamento severo — Av. Sampaio Vidal',
+      description: 'Bloqueio parcial de faixa identificado via sensores de radar. Fluxo veicular reduzido em 60%. Tempo estimado de normalização: 45 min.',
+      severity: 'alerta',
+      event_type: 'congestionamento',
+      neighborhood: 'Centro',
+      street: 'Av. Sampaio Vidal',
+      latitude: -22.2160,
+      longitude: -49.9490,
+      status: 'ativo',
+      equipment_id: 1,
+      agent_id: 1
+    },
+    {
+      title: 'Cancela CAN-AUT-007 desativada para manutenção',
+      description: 'Cancela do Terminal Rodoviário desativada para substituição do motor brushless. Previsão de normalização: 28/10/2026 às 18h.',
+      severity: 'alerta',
+      event_type: 'sensor_offline',
+      neighborhood: 'Centro',
+      street: 'Terminal Rodoviário Central',
+      latitude: -22.2168,
+      longitude: -49.9535,
+      status: 'em_atendimento',
+      equipment_id: 8,
+      agent_id: null
+    },
+    {
+      title: 'Balança BAL-PES-003 — calibração periódica próxima',
+      description: 'Data de calibração semestral das células de carga piezoelétricas agendada para 05/11/2026. Agendamento confirmado com equipe técnica da Toledo do Brasil.',
+      severity: 'informativo',
+      event_type: 'sensor_offline',
+      neighborhood: 'Distrito Industrial',
+      street: 'Rodovia SP-294',
+      latitude: -22.2031,
+      longitude: -49.9723,
+      status: 'ativo',
+      equipment_id: 5,
+      agent_id: null
+    },
+    {
+      title: 'Alarme de segurança — área da Fragata',
+      description: 'Câmera CAM-VID-010 detectou movimentação suspeita às 02:47h na Av. Tiradentes. Guarda Municipal acionada para verificação in loco.',
+      severity: 'critico',
+      event_type: 'alarme_seguranca',
+      neighborhood: 'Fragata',
+      street: 'Av. Tiradentes',
+      latitude: -22.2268,
+      longitude: -49.9412,
+      status: 'em_atendimento',
+      equipment_id: 3,
+      agent_id: 2
+    },
+    {
+      title: 'Patinete PAT-ELET-552 — bateria baixa detectada',
+      description: 'Sensor IoT do patinete reportou nível de bateria abaixo do limiar mínimo operacional. Recolhimento automático agendado para a base de carregamento.',
+      severity: 'informativo',
+      event_type: 'sensor_offline',
+      neighborhood: 'Cascata',
+      street: 'Av. das Esmeraldas',
+      latitude: -22.2295,
+      longitude: -49.9351,
+      status: 'resolvido',
+      equipment_id: 7,
+      agent_id: null
+    },
+    {
+      title: 'Manutenção agendada — Radar RAD-SEM-002',
+      description: 'Radar de semáforo do cruzamento Rua Nove de Julho com Rua Bahia com calibração periódica agendada para 20/11/2026. Sistema operacional até lá.',
+      severity: 'informativo',
+      event_type: 'sensor_offline',
+      neighborhood: 'Alto Cafezal',
+      street: 'Rua Nove de Julho',
+      latitude: -22.2189,
+      longitude: -49.9463,
+      status: 'resolvido',
+      equipment_id: 2,
+      agent_id: null
+    }
+  ];
+
+  for (const ev of initialEvents) {
+    insertEvent.run(ev);
   }
 }
 

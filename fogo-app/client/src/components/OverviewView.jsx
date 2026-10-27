@@ -10,7 +10,9 @@ import {
   TrendingUp,
   Cpu,
   Layers,
-  Map
+  Map,
+  ShieldAlert,
+  Radio
 } from 'lucide-react';
 import { getEquipmentType } from '../constants/equipmentTypes';
 
@@ -26,6 +28,8 @@ export default function OverviewView({
       e.status === 'mau_funcionamento' ||
       e.status === 'furtado'
   );
+  const activeEvents = analytics?.activeEvents ?? 0;
+  const criticalEvents = analytics?.criticalEvents ?? 0;
 
   return (
     <div className="space-y-6 max-w-[1720px] mx-auto">
@@ -56,7 +60,7 @@ export default function OverviewView({
       </div>
 
       {/* Grid Bento: Métricas Principais & Saúde da Cidade */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         
         {/* Card 1: Saúde Operacional Geral */}
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900/90 via-slate-900/60 to-slate-950 border border-slate-800 p-5 shadow-xl hover:border-slate-700/80 transition-all group">
@@ -188,11 +192,42 @@ export default function OverviewView({
           </div>
         </div>
 
+        {/* Card 5: Eventos Ativos CCO */}
+        <div
+          onClick={() => onNavigateTab('operations')}
+          className="cursor-pointer rounded-2xl bg-slate-900/80 border border-slate-800 p-5 shadow-xl hover:border-rose-500/40 hover:bg-slate-900 transition-all group md:col-span-2 lg:col-span-1"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-mono uppercase tracking-wider text-slate-400 font-medium">
+              Eventos CCO Ativos
+            </span>
+            <div className={`p-2 rounded-lg border group-hover:scale-110 transition-transform ${criticalEvents > 0 ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20'}`}>
+              <ShieldAlert className={`w-4 h-4 ${criticalEvents > 0 ? 'animate-pulse' : ''}`} />
+            </div>
+          </div>
+
+          <div className="mt-4 flex items-baseline justify-between">
+            <div>
+              <span className={`text-3xl sm:text-4xl font-extrabold tracking-tight ${criticalEvents > 0 ? 'text-rose-400' : 'text-amber-400'}`}>
+                {activeEvents}
+              </span>
+              <span className="block text-xs text-slate-400 mt-1">
+                {criticalEvents > 0 ? `${criticalEvents} crítico(s) — atenção imediata` : 'Sem ocorrências críticas'}
+              </span>
+            </div>
+            <ArrowRight className="w-4 h-4 text-slate-600 group-hover:text-rose-400 group-hover:translate-x-1 transition-all" />
+          </div>
+
+          <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center gap-2 text-xs text-slate-400">
+            <Radio className="w-3 h-3 text-orange-400" />
+            <span>Acesse o CCO para detalhes</span>
+          </div>
+        </div>
+
       </div>
 
       {/* Seção 2: Bento Grid com Distribuição & Alertas Rápidos */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">        
         {/* Coluna 1 & 2: Alertas Críticos em Destaque */}
         <div className="lg:col-span-2 rounded-2xl bg-slate-900/70 border border-slate-800 p-5 shadow-xl">
           <div className="flex items-center justify-between pb-4 border-b border-slate-800">

@@ -7,9 +7,10 @@ import AgentsView from './components/AgentsView';
 import MaintenanceView from './components/MaintenanceView';
 import EquipmentModal from './components/EquipmentModal';
 import AgentModal from './components/AgentModal';
+import OperationsCenterView from './components/OperationsCenterView';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'inventory', 'map', 'agents', 'maintenance'
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'inventory', 'map', 'agents', 'maintenance', 'operations'
   const [equipments, setEquipments] = useState([]);
   const [agents, setAgents] = useState([]);
   const [analytics, setAnalytics] = useState(null);
@@ -342,6 +343,15 @@ export default function App() {
             onEditEquipment={handleEditEquipment}
           />
         )}
+
+        {/* ABA: CCO — Central de Operações PROMETHEUS (Etapa 2) */}
+        {activeTab === 'operations' && (
+          <OperationsCenterView
+            equipments={equipments}
+            agents={agents}
+            onNavigateTab={setActiveTab}
+          />
+        )}
       </main>
 
       {/* Modal de Equipamento */}
@@ -366,7 +376,7 @@ export default function App() {
       {/* Rodapé Minimalista & Elegante */}
       <footer className="border-t border-slate-800/80 bg-slate-950/90 px-6 py-3.5 text-xs text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <span className="font-semibold text-slate-400">PROMETHEUS ENGINE</span>
+          <span className="font-semibold text-slate-400">PROMETHEUS ENGINE v2.0</span>
           <span>•</span>
           <span>Projeto F.O.G.O. (Desafio DSIN CODER)</span>
         </div>

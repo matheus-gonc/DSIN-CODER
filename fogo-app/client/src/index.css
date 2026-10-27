@@ -1,6 +1,12 @@
 @import "tailwindcss";
 @import "leaflet/dist/leaflet.css";
 
+/* ─── Animação de Pulso para Marcadores Críticos do CCO ──────────────────── */
+@keyframes cco-pulse {
+  0%, 100% { box-shadow: 0 0 18px #ef444488, 0 3px 8px rgba(0,0,0,0.6); opacity: 1; }
+  50% { box-shadow: 0 0 32px #ef4444cc, 0 0 0 8px #ef444422, 0 3px 8px rgba(0,0,0,0.6); opacity: 0.85; }
+}
+
 @layer base {
   body {
     font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;

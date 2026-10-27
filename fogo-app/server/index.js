@@ -342,6 +342,8 @@ app.get('/api/analytics/summary', (req, res) => {
     const operational = db.prepare("SELECT COUNT(*) as count FROM equipments WHERE status = 'operacional'").get().count;
     const malfunction = db.prepare("SELECT COUNT(*) as count FROM equipments WHERE status = 'mau_funcionamento'").get().count;
     const stolen = db.prepare("SELECT COUNT(*) as count FROM equipments WHERE status = 'furtado'").get().count;
+    const desativado = db.prepare("SELECT COUNT(*) as count FROM equipments WHERE status = 'desativado'").get().count;
+    const naoInstalado = db.prepare("SELECT COUNT(*) as count FROM equipments WHERE status = 'ainda_nao_instalado'").get().count;
     const urgentMaintenance = db.prepare("SELECT COUNT(*) as count FROM equipments WHERE maintenance_need = 'imediata'").get().count;
     const scheduledMaintenance = db.prepare("SELECT COUNT(*) as count FROM equipments WHERE maintenance_need = 'agendada_periodica'").get().count;
     
@@ -354,21 +356,193 @@ app.get('/api/analytics/summary', (req, res) => {
 
     const totalAgents = db.prepare('SELECT COUNT(*) as count FROM agents').get().count;
     const agentsOnPatrol = db.prepare("SELECT COUNT(*) as count FROM agents WHERE status = 'em_patrulha'").get().count;
+    const agentsOnDuty = db.prepare("SELECT COUNT(*) as count FROM agents WHERE status IN ('em_patrulha','em_atendimento')").get().count;
+
+    // Eventos CCO
+    const activeEvents = db.prepare("SELECT COUNT(*) as count FROM city_events WHERE status IN ('ativo','em_atendimento')").get().count;
+    const criticalEvents = db.prepare("SELECT COUNT(*) as count FROM city_events WHERE severity = 'critico' AND status IN ('ativo','em_atendimento')").get().count;
+
+    const inactiveEquipments = malfunction + stolen + desativado;
 
     res.json({
       totalEquipments,
       operational,
       malfunction,
       stolen,
+      desativado,
+      naoInstalado,
+      inactiveEquipments,
       urgentMaintenance,
       scheduledMaintenance,
       byType,
       totalAgents,
       agentsOnPatrol,
+      agentsOnDuty,
+      activeEvents,
+      criticalEvents,
       prometheusHealthScore: Math.round(((operational) / (totalEquipments || 1)) * 100)
     });
   } catch (err) {
     res.status(500).json({ error: 'Erro ao calcular telemetria', details: err.message });
+  }
+});
+
+// ==========================================
+// 4. EVENTOS CRÍTICOS — CCO PROMETHEUS (Etapa 2)
+// ==========================================
+
+// Listar eventos com filtros opcionais
+app.get('/api/events', (req, res) => {
+  try {
+    const { severity, status, neighborhood, limit } = req.query;
+    let query = 'SELECT * FROM city_events WHERE 1=1';
+    const params = [];
+
+    if (severity) { query += ' AND severity = ?'; params.push(severity); }
+    if (status) { query += ' AND status = ?'; params.push(status); }
+    if (neighborhood) { query += ' AND neighborhood = ?'; params.push(neighborhood); }
+
+    query += ' ORDER BY CASE severity WHEN \'critico\' THEN 1 WHEN \'alerta\' THEN 2 ELSE 3 END, created_at DESC';
+    if (limit) { query += ' LIMIT ?'; params.push(Number(limit)); }
+
+    const rows = db.prepare(query).all(...params);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao listar eventos', details: err.message });
+  }
+});
+
+// Criar novo evento
+app.post('/api/events', (req, res) => {
+  try {
+    const { title, description, severity, event_type, neighborhood, street, latitude, longitude, status, equipment_id, agent_id } = req.body;
+    if (!title || !severity || !event_type || !neighborhood || latitude === undefined || longitude === undefined || !status) {
+      return res.status(400).json({ error: 'Campos obrigatórios ausentes' });
+    }
+    const stmt = db.prepare(`
+      INSERT INTO city_events (title, description, severity, event_type, neighborhood, street, latitude, longitude, status, equipment_id, agent_id)
+      VALUES (@title, @description, @severity, @event_type, @neighborhood, @street, @latitude, @longitude, @status, @equipment_id, @agent_id)
+    `);
+    const info = stmt.run({
+      title, description: description || '', severity, event_type, neighborhood,
+      street: street || '', latitude: Number(latitude), longitude: Number(longitude),
+      status, equipment_id: equipment_id ? Number(equipment_id) : null, agent_id: agent_id ? Number(agent_id) : null
+    });
+    res.status(201).json({ id: info.lastInsertRowid, message: 'Evento registrado no CCO PROMETHEUS' });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao criar evento', details: err.message });
+  }
+});
+
+// Atualizar evento (ex: marcar como resolvido, trocar status)
+app.put('/api/events/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, description, severity, event_type, neighborhood, street, latitude, longitude, status, equipment_id, agent_id } = req.body;
+    const resolvedAt = status === 'resolvido' ? new Date().toISOString() : null;
+    const stmt = db.prepare(`
+      UPDATE city_events SET
+        title = @title, description = @description, severity = @severity,
+        event_type = @event_type, neighborhood = @neighborhood, street = @street,
+        latitude = @latitude, longitude = @longitude, status = @status,
+        equipment_id = @equipment_id, agent_id = @agent_id,
+        resolved_at = CASE WHEN @status = 'resolvido' THEN CURRENT_TIMESTAMP ELSE resolved_at END
+      WHERE id = @id
+    `);
+    const result = stmt.run({
+      id, title, description: description || '', severity, event_type, neighborhood,
+      street: street || '', latitude: Number(latitude), longitude: Number(longitude),
+      status, equipment_id: equipment_id ? Number(equipment_id) : null,
+      agent_id: agent_id ? Number(agent_id) : null
+    });
+    if (result.changes === 0) return res.status(404).json({ error: 'Evento não encontrado' });
+    res.json({ message: 'Evento atualizado' });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao atualizar evento', details: err.message });
+  }
+});
+
+// Remover evento
+app.delete('/api/events/:id', (req, res) => {
+  try {
+    const result = db.prepare('DELETE FROM city_events WHERE id = ?').run(req.params.id);
+    if (result.changes === 0) return res.status(404).json({ error: 'Evento não encontrado' });
+    res.json({ message: 'Evento removido' });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao remover evento', details: err.message });
+  }
+});
+
+// ==========================================
+// 5. ANALYTICS REGIONAL E CRITICIDADE (Etapa 2)
+// ==========================================
+
+// Saúde por bairro
+app.get('/api/analytics/regional', (req, res) => {
+  try {
+    const byNeighborhood = db.prepare(`
+      SELECT
+        neighborhood,
+        COUNT(*) as total,
+        SUM(CASE WHEN status = 'operacional' THEN 1 ELSE 0 END) as operational,
+        SUM(CASE WHEN status IN ('mau_funcionamento','furtado') THEN 1 ELSE 0 END) as critical,
+        SUM(CASE WHEN maintenance_need = 'imediata' THEN 1 ELSE 0 END) as urgent_maintenance
+      FROM equipments
+      GROUP BY neighborhood
+      ORDER BY neighborhood ASC
+    `).all();
+
+    const eventsByNeighborhood = db.prepare(`
+      SELECT neighborhood, COUNT(*) as active_events
+      FROM city_events
+      WHERE status IN ('ativo','em_atendimento')
+      GROUP BY neighborhood
+    `).all();
+
+    const eventsMap = {};
+    for (const ev of eventsByNeighborhood) {
+      eventsMap[ev.neighborhood] = ev.active_events;
+    }
+
+    const result = byNeighborhood.map(r => ({
+      ...r,
+      healthScore: Math.round((r.operational / (r.total || 1)) * 100),
+      activeEvents: eventsMap[r.neighborhood] || 0
+    }));
+
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao calcular saúde regional', details: err.message });
+  }
+});
+
+// Lista de equipamentos mais críticos
+app.get('/api/analytics/criticality', (req, res) => {
+  try {
+    const critical = db.prepare(`
+      SELECT *, 
+        CASE 
+          WHEN status = 'furtado' AND maintenance_need = 'imediata' THEN 10
+          WHEN status = 'furtado' THEN 8
+          WHEN status = 'mau_funcionamento' AND maintenance_need = 'imediata' THEN 9
+          WHEN status = 'mau_funcionamento' THEN 6
+          WHEN maintenance_need = 'imediata' THEN 5
+          WHEN status = 'desativado' THEN 3
+          WHEN maintenance_need = 'agendada_periodica' THEN 2
+          ELSE 1
+        END as criticality_score
+      FROM equipments
+      WHERE status != 'operacional' OR maintenance_need != 'nenhuma'
+      ORDER BY criticality_score DESC
+      LIMIT 10
+    `).all();
+
+    res.json(critical.map(r => ({
+      ...r,
+      custom_properties: r.custom_properties ? JSON.parse(r.custom_properties) : {}
+    })));
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao calcular criticidade', details: err.message });
   }
 });
 

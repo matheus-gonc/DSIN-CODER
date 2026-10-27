@@ -7,7 +7,8 @@ import {
   LayoutDashboard,
   Layers,
   Map,
-  Wrench
+  Wrench,
+  ShieldAlert
 } from 'lucide-react';
 
 export default function Navbar({
@@ -42,11 +43,13 @@ export default function Navbar({
     { id: 'inventory', label: 'Catálogo de Equipamentos', icon: Layers },
     { id: 'map', label: 'Mapa Tático GPS', icon: Map },
     { id: 'agents', label: 'Agentes & Patrulha', icon: Users },
-    { id: 'maintenance', label: 'Manutenções', icon: Wrench }
+    { id: 'maintenance', label: 'Manutenções', icon: Wrench },
+    { id: 'operations', label: 'CCO // Central de Operações', icon: ShieldAlert }
   ];
 
   const healthScore = analytics?.prometheusHealthScore ?? 0;
   const isHealthy = healthScore >= 70;
+  const criticalEvents = analytics?.criticalEvents ?? 0;
 
   return (
     <header className="sticky top-0 z-40 w-full bg-slate-950/85 backdrop-blur-xl border-b border-slate-800/80 shadow-lg shadow-black/20">
@@ -70,7 +73,7 @@ export default function Navbar({
               </span>
               <span className="text-xs font-mono font-bold text-slate-500">//</span>
               <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded-md bg-orange-500/15 text-orange-400 border border-orange-500/25">
-                F.O.G.O. v1.0
+                F.O.G.O. v2.0
               </span>
             </div>
             <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-medium">
@@ -81,30 +84,33 @@ export default function Navbar({
           </div>
         </div>
 
-        {/* Centro: Navbar de Navegação Segmentada (Clean & Humana) */}
-        <nav className="hidden lg:flex items-center p-1 bg-slate-900/90 rounded-xl border border-slate-800/90 shadow-inner">
+        {/* Navegação Desktop (oculta em mobile) */}
+        <nav className="hidden lg:flex items-center gap-1 flex-1 justify-center max-w-3xl">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
+            const isCCO = item.id === 'operations';
+            const hasCritical = isCCO && criticalEvents > 0;
             return (
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
-                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 cursor-pointer ${
+                className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer whitespace-nowrap ${
                   isActive
-                    ? 'bg-gradient-to-r from-orange-500/20 to-amber-500/20 text-orange-300 border border-orange-500/40 shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                    ? isCCO
+                      ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                      : 'bg-orange-500/20 text-orange-300 border border-orange-500/40'
+                    : isCCO
+                      ? 'text-slate-400 hover:text-rose-300 hover:bg-rose-500/10 border border-transparent'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900 border border-transparent'
                 }`}
               >
-                <Icon
-                  className={`w-4 h-4 transition-colors ${
-                    isActive ? 'text-orange-400' : 'text-slate-400'
-                  }`}
-                />
+                <Icon className="w-3.5 h-3.5" />
                 <span>{item.label}</span>
-                {item.id === 'maintenance' && analytics?.urgentMaintenance > 0 && (
-                  <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/40 animate-pulse">
-                    {analytics.urgentMaintenance}
+                {/* Badge de alertas críticos na aba CCO */}
+                {hasCritical && (
+                  <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-white text-[9px] font-bold animate-pulse ring-1 ring-slate-950">
+                    {criticalEvents > 9 ? '9+' : criticalEvents}
                   </span>
                 )}
               </button>
@@ -112,11 +118,10 @@ export default function Navbar({
           })}
         </nav>
 
-        {/* Lado Direito: Status da Rede & Ações Rápidas */}
-        <div className="flex items-center gap-3">
-          
-          {/* Health Score Pill */}
-          <div className="hidden sm:flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-slate-900/80 border border-slate-800 text-xs">
+        {/* Lado Direito: Status + Ações */}
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          {/* Índice de Saúde da Rede */}
+          <div className="hidden md:flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-slate-900/80 border border-slate-800 shadow-sm">
             <div className="relative flex items-center justify-center">
               <span
                 className={`w-2.5 h-2.5 rounded-full ${
@@ -178,23 +183,32 @@ export default function Navbar({
         </div>
       </div>
 
-      {/* Barra de Navegação Mobile (quando em telas menores) */}
+      {/* Barra de Navegação Mobile */}
       <div className="lg:hidden px-4 py-2 bg-slate-950/95 border-t border-slate-800/80 overflow-x-auto flex gap-1.5 no-scrollbar">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
+          const isCCO = item.id === 'operations';
+          const hasCritical = isCCO && criticalEvents > 0;
           return (
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium whitespace-nowrap cursor-pointer ${
+              className={`relative flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium whitespace-nowrap cursor-pointer ${
                 isActive
-                  ? 'bg-orange-500/20 text-orange-300 border border-orange-500/40'
+                  ? isCCO
+                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                    : 'bg-orange-500/20 text-orange-300 border border-orange-500/40'
                   : 'text-slate-400 hover:bg-slate-900'
               }`}
             >
               <Icon className="w-3.5 h-3.5" />
               <span>{item.label}</span>
+              {hasCritical && (
+                <span className="ml-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-rose-500 text-white text-[9px] font-bold animate-pulse">
+                  {criticalEvents}
+                </span>
+              )}
             </button>
           );
         })}
